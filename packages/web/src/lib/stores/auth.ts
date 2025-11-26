@@ -1,11 +1,12 @@
 import { atom } from 'nanostores'
 import type { User } from '../api/auth'
-import { saveSession, clearSessionLocalStorage } from '../auth/session'
 
 export interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   user: User | null
+  // Tokens are stored in httpOnly cookies, not in client state
+  // These fields are kept for backward compatibility but may be null
   accessToken: string | null
   refreshToken: string | null
 }
@@ -18,17 +19,18 @@ export const $authState = atom<AuthState>({
   refreshToken: null
 })
 
-export function setAuthenticated(user: User, accessToken: string, refreshToken: string) {
+/**
+ * Set authenticated state
+ * Tokens are stored in httpOnly cookies, so we only store user info in client state
+ */
+export function setAuthenticated(user: User, accessToken: string | null, refreshToken: string | null) {
   $authState.set({
     isAuthenticated: true,
     isLoading: false,
     user,
-    accessToken,
-    refreshToken
+    accessToken: accessToken || null, // May be null since tokens are in cookies
+    refreshToken: refreshToken || null // May be null since tokens are in cookies
   })
-
-  // Save to localStorage
-  saveSession(accessToken, refreshToken, user)
 }
 
 export function setLoading(isLoading: boolean) {
@@ -46,9 +48,9 @@ export function clearAuth() {
     accessToken: null,
     refreshToken: null
   })
-
-  // Clear localStorage
-  clearSessionLocalStorage()
+  
+  // Note: Cookies are cleared server-side via /api/auth/logout
+  // Client-side localStorage cleanup is not needed
 }
 
 export function updateAccessToken(accessToken: string) {
@@ -56,4 +58,5 @@ export function updateAccessToken(accessToken: string) {
     ...$authState.get(),
     accessToken
   })
+  // Note: The actual token in cookies is updated server-side on refresh
 }

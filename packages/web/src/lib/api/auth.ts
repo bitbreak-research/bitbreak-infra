@@ -46,19 +46,18 @@ export async function login(username: string, password: string) {
   })
 }
 
-export async function refresh(refreshToken: string) {
-  return post<RefreshResponse>('/api/auth/refresh', {
-    refreshToken
-  })
+export async function refresh() {
+  // Refresh token is in cookies, no need to pass it
+  return post<RefreshResponse>('/api/auth/refresh', {})
 }
 
-export async function logout(refreshToken: string) {
-  return post<{ success: boolean }>('/api/auth/logout', {
-    refreshToken
-  })
+export async function logout() {
+  // Refresh token is in cookies, no need to pass it
+  return post<{ success: boolean }>('/api/auth/logout', {})
 }
 
-export async function getMe(accessToken: string) {
-  return authGet<MeResponse>('/api/auth/me', accessToken)
+export async function getMe() {
+  // Access token is in cookies, no need to pass it
+  return get<MeResponse>('/api/auth/me')
 }
 

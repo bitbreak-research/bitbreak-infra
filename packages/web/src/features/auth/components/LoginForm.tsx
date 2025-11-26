@@ -17,7 +17,7 @@ export default function LoginForm() {
     // Check if user already has a valid session
     const hasSession = await checkSession()
     if (hasSession) {
-      window.location.href = '/'
+      window.location.href = '/workers'
       return
     }
 
@@ -38,12 +38,14 @@ export default function LoginForm() {
     const result = await login(username(), password())
 
     if (result.success && result.data) {
+      // Cookies are set server-side by the API proxy route
+      // Update client state and redirect
       setAuthenticated(
         result.data.user,
-        result.data.accessToken,
-        result.data.refreshToken
+        null, // Tokens are in httpOnly cookies
+        null
       )
-      window.location.href = '/'
+      window.location.href = '/workers'
     } else {
       setError(result.error?.message || 'Login failed')
     }

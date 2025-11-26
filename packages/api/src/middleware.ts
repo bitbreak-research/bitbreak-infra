@@ -19,7 +19,8 @@ const PUBLIC_ROUTES = [
   '/api/auth/setup',
   '/api/auth/login',
   '/api/auth/refresh',
-  '/api/user'
+  '/api/user',
+  '/ws' // WebSocket endpoint (handles its own auth)
 ]
 
 middleware.use(async (c, next) => {
