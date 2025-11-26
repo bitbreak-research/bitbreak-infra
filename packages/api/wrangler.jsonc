@@ -9,13 +9,16 @@
 			"database_name": "bb",
 			"database_id": "10480fa2-04a6-4e91-b448-3cf7f008b628"
 		}
-	]
+	],
+	"vars": {
+		"ACCESS_TOKEN_EXPIRY": "900",
+		"REFRESH_TOKEN_EXPIRY": "604800",
+		"JWT_SECRET": "dev-secret-change-in-production-min-32-chars"
+	}
+	// Production: Use `wrangler secret put JWT_SECRET` to set a secure secret
 	// "compatibility_flags": [
 	//   "nodejs_compat"
 	// ],
-	// "vars": {
-	//   "MY_VAR": "my-variable"
-	// },
 	// "kv_namespaces": [
 	//   {
 	//     "binding": "MY_KV_NAMESPACE",
@@ -26,13 +29,6 @@
 	//   {
 	//     "binding": "MY_BUCKET",
 	//     "bucket_name": "my-bucket"
-	//   }
-	// ],
-	// "d1_databases": [
-	//   {
-	//     "binding": "MY_DB",
-	//     "database_name": "my-database",
-	//     "database_id": ""
 	//   }
 	// ],
 	// "ai": {

@@ -13,5 +13,31 @@
     "button": "Conectar CLI",
     "sourceLabel": "Origen:",
     "callbackLabel": "Callback:"
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar Sesión",
+      "username": "Usuario",
+      "password": "Contraseña",
+      "submit": "Iniciar Sesión",
+      "loading": "Iniciando sesión..."
+    },
+    "setup": {
+      "title": "Crear Cuenta",
+      "subtitle": "Configura tu primera cuenta",
+      "username": "Usuario",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar Contraseña",
+      "submit": "Crear Cuenta",
+      "loading": "Creando cuenta..."
+    },
+    "errors": {
+      "invalidCredentials": "Credenciales inválidas",
+      "passwordMismatch": "Las contraseñas no coinciden",
+      "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
+      "usernameInvalid": "El usuario debe tener 3-50 caracteres, solo letras, números, guión bajo y guión",
+      "setupDisabled": "La configuración está deshabilitada, ya existe un usuario",
+      "networkError": "Error de red, intenta de nuevo"
+    }
   }
 }
