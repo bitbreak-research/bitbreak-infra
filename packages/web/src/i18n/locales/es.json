@@ -1,0 +1,17 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "missingParameters": "Faltan parámetros",
+    "callbackRequired": "Esta página necesita los parámetros callback y token.",
+    "expectedUrl": "Formato de URL esperado:",
+    "currentUrl": "URL actual:",
+    "apiKeyNotice": "Se generará una clave de API de prueba y se enviará a tu CLI."
+  },
+  "connect": {
+    "title": "Conectar CLI",
+    "description": "Haz clic en el botón para conectar tu CLI a los servicios de BB-lite.",
+    "button": "Conectar CLI",
+    "sourceLabel": "Origen:",
+    "callbackLabel": "Callback:"
+  }
+}

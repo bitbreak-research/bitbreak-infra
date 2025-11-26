@@ -1,0 +1,19 @@
+{
+  "name": "bb-infra",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo for BB infrastructure",
+  "scripts": {
+    "dev": "pnpm --filter './packages/*' dev",
+    "build": "pnpm --filter './packages/*' build",
+    "test": "pnpm --filter './packages/*' test",
+    "lint": "pnpm --filter './packages/*' lint"
+  },
+  "devDependencies": {
+    "pnpm": "^9.15.9"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.15.9"
+  }
+}

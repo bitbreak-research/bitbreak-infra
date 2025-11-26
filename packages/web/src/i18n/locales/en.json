@@ -1,0 +1,17 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "missingParameters": "Missing Parameters",
+    "callbackRequired": "This page requires callback and token parameters.",
+    "expectedUrl": "Expected URL format:",
+    "currentUrl": "Current URL:",
+    "apiKeyNotice": "A test API key will be generated and sent to your CLI."
+  },
+  "connect": {
+    "title": "Connect CLI",
+    "description": "Click the button below to connect your CLI to BB-lite services.",
+    "button": "Connect CLI",
+    "sourceLabel": "Source:",
+    "callbackLabel": "Callback:"
+  }
+}
