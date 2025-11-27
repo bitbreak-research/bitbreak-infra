@@ -1,0 +1,22 @@
+---
+import AuthLayout from "../../layouts/AuthLayout.astro";
+import { ConnectForm } from "../../features/auth";
+
+interface Props {
+  callback: string;
+  token: string;
+  source: string;
+}
+
+const { callback, token, source } = Astro.props;
+---
+
+<AuthLayout title="Connect CLI">
+  <ConnectForm 
+    client:load 
+    callback={callback}
+    token={token}
+    source={source}
+  />
+</AuthLayout>
+

@@ -6,7 +6,11 @@ import { login, getAuthStatus } from '../../../lib/api/auth'
 import { setAuthenticated } from '../../../lib/stores/auth'
 import { checkSession } from '../../../lib/auth/session'
 
-export default function LoginForm() {
+interface LoginFormProps {
+  redirectUrl?: string
+}
+
+export default function LoginForm(props: LoginFormProps) {
   const [username, setUsername] = createSignal('')
   const [password, setPassword] = createSignal('')
   const [error, setError] = createSignal('')
@@ -17,7 +21,7 @@ export default function LoginForm() {
     // Check if user already has a valid session
     const hasSession = await checkSession()
     if (hasSession) {
-      window.location.href = '/workers'
+      window.location.href = props.redirectUrl || '/workers'
       return
     }
 
@@ -45,7 +49,7 @@ export default function LoginForm() {
         null, // Tokens are in httpOnly cookies
         null
       )
-      window.location.href = '/workers'
+      window.location.href = props.redirectUrl || '/workers'
     } else {
       setError(result.error?.message || 'Login failed')
     }

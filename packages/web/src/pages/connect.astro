@@ -1,0 +1,24 @@
+---
+import ConnectPage from "../components/pages/ConnectPage.astro";
+import { checkAuth } from "../lib/utils/server-auth";
+
+export const prerender = false;
+
+// Get query parameters
+const callback = Astro.url.searchParams.get('callback') || '';
+const token = Astro.url.searchParams.get('token') || '';
+const source = Astro.url.searchParams.get('source') || '';
+
+// Check if user is authenticated
+const { isAuthenticated } = await checkAuth(Astro.cookies);
+
+// If not authenticated, redirect to login with full connect URL as redirect parameter
+if (!isAuthenticated) {
+  // Preserve all query parameters in the redirect
+  const connectUrl = `/connect?callback=${encodeURIComponent(callback)}&token=${encodeURIComponent(token)}&source=${encodeURIComponent(source)}`;
+  return Astro.redirect(`/login?redirect=${encodeURIComponent(connectUrl)}`);
+}
+---
+
+<ConnectPage callback={callback} token={token} source={source} />
+

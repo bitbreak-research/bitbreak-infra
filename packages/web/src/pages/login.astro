@@ -5,11 +5,14 @@ import { checkAuth } from "../lib/utils/server-auth";
 
 export const prerender = false;
 
-// Redirect to /workers if already authenticated
+// Get redirect parameter
+const redirectUrl = Astro.url.searchParams.get('redirect') || '/workers';
+
+// Redirect if already authenticated
 const { isAuthenticated } = await checkAuth(Astro.cookies);
 
 if (isAuthenticated) {
-  return Astro.redirect("/workers");
+  return Astro.redirect(redirectUrl);
 }
 ---
 
@@ -19,7 +22,7 @@ if (isAuthenticated) {
       <h1 class="text-lg font-medium">Sign In</h1>
     </div>
     
-    <LoginForm client:load />
+    <LoginForm client:load redirectUrl={redirectUrl} />
   </div>
 </AuthLayout>
 
