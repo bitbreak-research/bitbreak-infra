@@ -1,7 +1,7 @@
 import { createSignal, onMount, Show } from 'solid-js'
 import { useStore } from '@nanostores/solid'
 import { $authState } from '../../../lib/stores/auth'
-import { listWorkers, revokeWorker, regenerateToken, type Worker } from '../../../lib/api/workers'
+import { listWorkers, revokeWorker, regenerateToken, getWorkersStatus, type Worker, type WorkerStatusWithMetrics } from '../../../lib/api/workers'
 import WorkerStatusBadge from './WorkerStatusBadge'
 import Button from '../../../components/ui/Button'
 import Alert from '../../../components/ui/Alert'
@@ -13,6 +13,7 @@ interface WorkersListProps {
 export default function WorkersList(props: WorkersListProps) {
   const authState = useStore($authState)
   const [workers, setWorkers] = createSignal<Worker[]>([])
+  const [workersStatus, setWorkersStatus] = createSignal<WorkerStatusWithMetrics[]>([])
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal('')
   const [actionLoading, setActionLoading] = createSignal<string | null>(null)
@@ -32,14 +33,22 @@ export default function WorkersList(props: WorkersListProps) {
       return
     }
 
-    const result = await listWorkers()
+    const [workersResult, statusResult] = await Promise.all([
+      listWorkers(),
+      getWorkersStatus()
+    ])
 
-    if (result.success && result.data) {
-      setWorkers(result.data)
-      props.onRefresh?.()
+    if (workersResult.success && workersResult.data) {
+      setWorkers(workersResult.data)
     } else {
-      setError(result.error?.message || 'Failed to load workers')
+      setError(workersResult.error?.message || 'Failed to load workers')
     }
+
+    if (statusResult.success && statusResult.data) {
+      setWorkersStatus(statusResult.data.workers)
+    }
+
+    props.onRefresh?.()
 
     if (showLoading) {
       setLoading(false)
@@ -110,6 +119,17 @@ export default function WorkersList(props: WorkersListProps) {
     }
   }
 
+  const formatLastReportAge = (ageSeconds: number | null) => {
+    if (ageSeconds === null) return 'Never'
+    if (ageSeconds < 60) return `${ageSeconds} seconds ago`
+    if (ageSeconds < 3600) return `${Math.floor(ageSeconds / 60)} minutes ago`
+    return `${Math.floor(ageSeconds / 3600)} hours ago`
+  }
+
+  const getWorkerStatus = (workerId: string): WorkerStatusWithMetrics | undefined => {
+    return workersStatus().find(w => w.worker_id === workerId)
+  }
+
   onMount(() => {
     // Initial load with loading indicator
     fetchWorkers(true)
@@ -150,6 +170,9 @@ export default function WorkersList(props: WorkersListProps) {
                   Status
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Metrics
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Last Connected
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -161,46 +184,72 @@ export default function WorkersList(props: WorkersListProps) {
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              {workers().map((worker) => (
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900">{worker.name}</div>
-                    <div class="text-xs text-gray-500">{worker.id}</div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <WorkerStatusBadge status={worker.status} isConnected={worker.is_connected} />
-                    <Show when={worker.renewal_failure_reason}>
-                      <div class="text-xs text-yellow-600 mt-1">
-                        {worker.renewal_failure_reason}
-                      </div>
-                    </Show>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(worker.last_connected_at)}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatExpiresAt(worker.token_expires_at)}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <Show when={worker.status === 'active'}>
+              {workers().map((worker) => {
+                const status = getWorkerStatus(worker.id)
+                const connectionIndicator = status?.connected ? '●' : '○'
+                const connectionText = status?.connected ? 'Connected' : 'Disconnected'
+                
+                return (
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <div class="text-sm font-medium text-gray-900">{worker.name}</div>
+                      <div class="text-xs text-gray-500">{worker.id}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <WorkerStatusBadge status={worker.status} isConnected={worker.is_connected} />
+                      <Show when={worker.renewal_failure_reason}>
+                        <div class="text-xs text-yellow-600 mt-1">
+                          {worker.renewal_failure_reason}
+                        </div>
+                      </Show>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <Show when={status?.memory !== null && status?.cpu !== null && status?.rate !== null} fallback={
+                        <div class="text-xs text-gray-400">No metrics</div>
+                      }>
+                        <div class="space-y-1">
+                          <div class="flex items-center gap-2">
+                            <span class="font-medium">{connectionIndicator}</span>
+                            <span class="text-xs">{connectionText}</span>
+                          </div>
+                          <div class="text-xs">
+                            Memory: {status?.memory?.toLocaleString()} MB | CPU: {status?.cpu}% | Rate: {status?.rate} tasks/min
+                          </div>
+                          <Show when={status?.last_report_age_seconds !== null}>
+                            <div class="text-xs text-gray-400">
+                              Last report: {formatLastReportAge(status?.last_report_age_seconds ?? null)}
+                            </div>
+                          </Show>
+                        </div>
+                      </Show>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(worker.last_connected_at)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatExpiresAt(worker.token_expires_at)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      <Show when={worker.status === 'active'}>
+                        <button
+                          onClick={() => handleRegenerateToken(worker.id)}
+                          disabled={actionLoading() === worker.id}
+                          class="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                        >
+                          {actionLoading() === worker.id ? 'Loading...' : 'Regenerate Token'}
+                        </button>
+                      </Show>
                       <button
-                        onClick={() => handleRegenerateToken(worker.id)}
-                        disabled={actionLoading() === worker.id}
-                        class="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                        onClick={() => handleRevoke(worker.id)}
+                        disabled={actionLoading() === worker.id || worker.status === 'revoked'}
+                        class="text-red-600 hover:text-red-900 disabled:opacity-50"
                       >
-                        {actionLoading() === worker.id ? 'Loading...' : 'Regenerate Token'}
+                        {actionLoading() === worker.id ? 'Loading...' : 'Revoke'}
                       </button>
-                    </Show>
-                    <button
-                      onClick={() => handleRevoke(worker.id)}
-                      disabled={actionLoading() === worker.id || worker.status === 'revoked'}
-                      class="text-red-600 hover:text-red-900 disabled:opacity-50"
-                    >
-                      {actionLoading() === worker.id ? 'Loading...' : 'Revoke'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

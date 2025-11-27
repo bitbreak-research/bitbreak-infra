@@ -73,6 +73,19 @@ describe('Workers API', () => {
       )
     `).run()
 
+    // Create metrics table
+    await env.bb.prepare(`
+      CREATE TABLE IF NOT EXISTS metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id TEXT NOT NULL,
+        memory INTEGER NOT NULL,
+        cpu INTEGER NOT NULL,
+        rate INTEGER NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
+      )
+    `).run()
+
     // Create a user for authentication
     const setupRes = await app.request('/api/auth/setup', {
       method: 'POST',
@@ -91,6 +104,7 @@ describe('Workers API', () => {
   
   beforeEach(async () => {
     // Clean up tables before each test
+    await env.bb.prepare('DELETE FROM metrics').run()
     await env.bb.prepare('DELETE FROM token_log').run()
     await env.bb.prepare('DELETE FROM workers').run()
   })

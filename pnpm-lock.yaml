@@ -43,6 +43,12 @@ importers:
         specifier: ^4.4.0
         version: 4.50.0
 
+  packages/mock-worker:
+    dependencies:
+      ws:
+        specifier: ^8.18.0
+        version: 8.18.0
+
   packages/ui:
     dependencies:
       '@astrojs/solid-js':

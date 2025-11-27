@@ -45,6 +45,42 @@ export interface RegenerateTokenResponse {
   expires_at: string
 }
 
+export interface Metrics {
+  worker_id: string
+  memory: number
+  cpu: number
+  rate: number
+  created_at: string
+}
+
+export interface MetricsHistory {
+  worker_id: string
+  from: string
+  to: string
+  metrics: Array<{
+    memory: number
+    cpu: number
+    rate: number
+    created_at: string
+  }>
+}
+
+export interface WorkerStatusWithMetrics {
+  worker_id: string
+  name: string
+  status: WorkerStatus
+  connected: boolean
+  memory: number | null
+  cpu: number | null
+  rate: number | null
+  last_report: string | null
+  last_report_age_seconds: number | null
+}
+
+export interface WorkersStatusResponse {
+  workers: WorkerStatusWithMetrics[]
+}
+
 // Helper functions for authenticated requests
 // Tokens are in httpOnly cookies, so we don't pass them explicitly
 async function authPost<T>(url: string, body: unknown) {
@@ -159,5 +195,32 @@ export async function revokeWorker(id: string) {
  */
 export async function regenerateToken(id: string) {
   return authPost<RegenerateTokenResponse>(`/api/workers/${id}/token`, {})
+}
+
+/**
+ * Get latest metrics for a worker
+ */
+export async function getWorkerMetricsLatest(id: string) {
+  return authGet<Metrics>(`/api/workers/${id}/metrics/latest`)
+}
+
+/**
+ * Get metrics history for a worker
+ */
+export async function getWorkerMetrics(id: string, params?: { from?: string; to?: string; limit?: number }) {
+  const queryParams = new URLSearchParams()
+  if (params?.from) queryParams.append('from', params.from)
+  if (params?.to) queryParams.append('to', params.to)
+  if (params?.limit) queryParams.append('limit', params.limit.toString())
+  
+  const url = `/api/workers/${id}/metrics${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+  return authGet<MetricsHistory>(url)
+}
+
+/**
+ * Get all workers status with metrics
+ */
+export async function getWorkersStatus() {
+  return authGet<WorkersStatusResponse>('/api/workers/status')
 }
 

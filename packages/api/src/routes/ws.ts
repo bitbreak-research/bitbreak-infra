@@ -217,6 +217,94 @@ async function handleAuth(
 }
 
 /**
+ * Handle metrics message
+ */
+async function handleMetrics(
+  db: D1Database,
+  workerId: string,
+  message: { type: string; memory?: number; cpu?: number; rate?: number; metrics?: Array<{ memory: number; cpu: number; rate: number }> },
+  ws: WebSocket
+): Promise<{ success: boolean; error?: string }> {
+  // Handle batch metrics
+  if (message.type === 'metrics_batch' && message.metrics) {
+    const metrics = message.metrics
+    if (!Array.isArray(metrics) || metrics.length === 0) {
+      ws.send(JSON.stringify({
+        type: 'metrics_error',
+        code: 'INVALID_METRICS',
+        message: 'Invalid metrics batch format'
+      }))
+      return { success: false, error: 'INVALID_METRICS' }
+    }
+
+    // Validate all metrics in batch
+    for (const metric of metrics) {
+      if (
+        typeof metric.memory !== 'number' || metric.memory < 0 || metric.memory > 999999 ||
+        typeof metric.cpu !== 'number' || metric.cpu < 0 || metric.cpu > 100 ||
+        typeof metric.rate !== 'number' || metric.rate < 0 || metric.rate > 999999
+      ) {
+        ws.send(JSON.stringify({
+          type: 'metrics_error',
+          code: 'INVALID_METRICS',
+          message: 'Invalid metric values in batch'
+        }))
+        return { success: false, error: 'INVALID_METRICS' }
+      }
+    }
+
+    // Insert all metrics
+    const now = new Date().toISOString()
+    for (const metric of metrics) {
+      await db.prepare(
+        `INSERT INTO metrics (worker_id, memory, cpu, rate, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      ).bind(workerId, metric.memory, metric.cpu, metric.rate, now).run()
+    }
+
+    ws.send(JSON.stringify({
+      type: 'metrics_ack',
+      received: true
+    }))
+    return { success: true }
+  }
+
+  // Handle single metrics message
+  if (message.type === 'metrics') {
+    const { memory, cpu, rate } = message
+
+    // Validate required fields
+    if (
+      typeof memory !== 'number' || memory < 0 || memory > 999999 ||
+      typeof cpu !== 'number' || cpu < 0 || cpu > 100 ||
+      typeof rate !== 'number' || rate < 0 || rate > 999999
+    ) {
+      ws.send(JSON.stringify({
+        type: 'metrics_error',
+        code: 'INVALID_METRICS',
+        message: 'Invalid metric values. memory: 0-999999, cpu: 0-100, rate: 0-999999'
+      }))
+      return { success: false, error: 'INVALID_METRICS' }
+    }
+
+    // Insert metrics into database
+    const now = new Date().toISOString()
+    await db.prepare(
+      `INSERT INTO metrics (worker_id, memory, cpu, rate, created_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).bind(workerId, memory, cpu, rate, now).run()
+
+    ws.send(JSON.stringify({
+      type: 'metrics_ack',
+      received: true
+    }))
+    return { success: true }
+  }
+
+  return { success: false, error: 'INVALID_MESSAGE_TYPE' }
+}
+
+/**
  * Handle token renewal acknowledgment
  */
 async function handleTokenRenewalAck(
@@ -375,6 +463,12 @@ ws.get('/ws', upgradeWebSocket((c) => {
         // Handle token renewal acknowledgment
         if (message.type === 'token_renewal_ack') {
           await handleTokenRenewalAck(db, workerId, message.success, message.error)
+          return
+        }
+
+        // Handle metrics messages
+        if (message.type === 'metrics' || message.type === 'metrics_batch') {
+          await handleMetrics(db, workerId, message, ws)
           return
         }
 

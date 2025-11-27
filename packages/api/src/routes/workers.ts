@@ -30,6 +30,12 @@ const createWorkerSchema = z.object({
   name: z.string().min(3).max(100)
 })
 
+const metricsQuerySchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().int().positive().max(1000).default(100).optional()
+})
+
 /**
  * POST /api/workers
  * Create a new worker
@@ -102,6 +108,75 @@ workers.get('/', async (c) => {
     renewal_failure_reason: w.renewal_failure_reason,
     renewal_failure_at: w.renewal_failure_at
   })))
+})
+
+/**
+ * GET /api/workers/status
+ * Get all workers with connection status based on metrics
+ */
+workers.get('/status', async (c) => {
+  const workersList = await c.env.bb.prepare(
+    `SELECT 
+      w.id,
+      w.name,
+      w.status,
+      m.created_at as last_report,
+      m.memory,
+      m.cpu,
+      m.rate,
+      CASE
+        WHEN m.created_at IS NULL THEN 0
+        WHEN datetime(m.created_at) > datetime('now', '-2 minutes') THEN 1
+        ELSE 0
+      END as connected,
+      CASE
+        WHEN m.created_at IS NULL THEN NULL
+        ELSE CAST((julianday('now') - julianday(m.created_at)) * 86400 AS INTEGER)
+      END as last_report_age_seconds
+    FROM workers w
+    LEFT JOIN (
+      SELECT 
+        m1.worker_id,
+        m1.created_at,
+        m1.memory,
+        m1.cpu,
+        m1.rate
+      FROM metrics m1
+      WHERE m1.id = (
+        SELECT m2.id
+        FROM metrics m2
+        WHERE m2.worker_id = m1.worker_id
+        ORDER BY m2.created_at DESC
+        LIMIT 1
+      )
+    ) m ON w.id = m.worker_id
+    WHERE w.status = 'active'
+    ORDER BY w.created_at DESC`
+  ).all<{
+    id: string
+    name: string
+    status: string
+    last_report: string | null
+    memory: number | null
+    cpu: number | null
+    rate: number | null
+    connected: number
+    last_report_age_seconds: number | null
+  }>()
+
+  return c.json({
+    workers: workersList.results.map(w => ({
+      worker_id: w.id,
+      name: w.name,
+      status: w.status,
+      connected: w.connected === 1,
+      memory: w.memory,
+      cpu: w.cpu,
+      rate: w.rate,
+      last_report: w.last_report,
+      last_report_age_seconds: w.last_report_age_seconds
+    }))
+  })
 })
 
 /**
@@ -247,6 +322,95 @@ workers.post('/:id/token', async (c) => {
     worker_id: id,
     token: newToken, // Only shown once
     expires_at: expiresAt
+  })
+})
+
+/**
+ * GET /api/workers/:id/metrics/latest
+ * Get latest metrics for a worker
+ */
+workers.get('/:id/metrics/latest', async (c) => {
+  const id = c.req.param('id')
+
+  // Verify worker exists
+  const worker = await c.env.bb.prepare(
+    `SELECT id FROM workers WHERE id = ?`
+  ).bind(id).first<{ id: string }>()
+
+  if (!worker) {
+    return authError(c, AuthErrorCodes.WORKER_NOT_FOUND, 404)
+  }
+
+  // Get latest metrics
+  const latest = await c.env.bb.prepare(
+    `SELECT worker_id, memory, cpu, rate, created_at
+     FROM metrics
+     WHERE worker_id = ?
+     ORDER BY created_at DESC
+     LIMIT 1`
+  ).bind(id).first<{
+    worker_id: string
+    memory: number
+    cpu: number
+    rate: number
+    created_at: string
+  }>()
+
+  if (!latest) {
+    return authError(c, AuthErrorCodes.WORKER_NOT_FOUND, 404)
+  }
+
+  return c.json({
+    worker_id: latest.worker_id,
+    memory: latest.memory,
+    cpu: latest.cpu,
+    rate: latest.rate,
+    created_at: latest.created_at
+  })
+})
+
+/**
+ * GET /api/workers/:id/metrics
+ * Get metrics history for a worker
+ */
+workers.get('/:id/metrics', zValidator('query', metricsQuerySchema), async (c) => {
+  const id = c.req.param('id')
+  const { from, to, limit = 100 } = c.req.valid('query')
+
+  // Verify worker exists
+  const worker = await c.env.bb.prepare(
+    `SELECT id FROM workers WHERE id = ?`
+  ).bind(id).first<{ id: string }>()
+
+  if (!worker) {
+    return authError(c, AuthErrorCodes.WORKER_NOT_FOUND, 404)
+  }
+
+  // Calculate default date range (1 hour ago to now)
+  const now = new Date()
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+  const fromDate = from || oneHourAgo.toISOString()
+  const toDate = to || now.toISOString()
+
+  // Get metrics in date range
+  const metrics = await c.env.bb.prepare(
+    `SELECT memory, cpu, rate, created_at
+     FROM metrics
+     WHERE worker_id = ? AND created_at >= ? AND created_at <= ?
+     ORDER BY created_at DESC
+     LIMIT ?`
+  ).bind(id, fromDate, toDate, limit).all<{
+    memory: number
+    cpu: number
+    rate: number
+    created_at: string
+  }>()
+
+  return c.json({
+    worker_id: id,
+    from: fromDate,
+    to: toDate,
+    metrics: metrics.results
   })
 })
 
