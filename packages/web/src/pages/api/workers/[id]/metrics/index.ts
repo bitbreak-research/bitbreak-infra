@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro'
-import { getSessionTokenCookie } from '../../../../lib/auth/cookies'
+import { getSessionTokenCookie } from '@/lib/auth/cookies'
 
 const API_URL = import.meta.env.API_URL || 'http://localhost:8787'
 

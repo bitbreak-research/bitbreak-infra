@@ -6,7 +6,8 @@
     "deploy": "wrangler deploy --minify",
     "test": "vitest",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings ./types/worker-configuration.d.ts",
-    "db:migrate-local": "wrangler d1 migrations apply bb --local"
+    "db:migrate-local": "wrangler d1 migrations apply bb --local",
+    "db:migrate": "wrangler d1 migrations apply bb --remote"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.5",
