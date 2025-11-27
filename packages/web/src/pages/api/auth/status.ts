@@ -9,9 +9,9 @@ export const GET: APIRoute = async ({ request }) => {
       'Content-Type': 'application/json'
     }
   })
-  
+
   const data = await response.json()
-  
+
   return new Response(JSON.stringify(data), {
     status: response.status,
     headers: { 'Content-Type': 'application/json' }
