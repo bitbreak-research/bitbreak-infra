@@ -387,7 +387,7 @@ ws.get('/ws', upgradeWebSocket((c) => {
     onOpen(_event, ws) {
       console.log('[WS] Connection opened from IP:', ipAddress)
       // Set a 10-second timeout for authentication
-      authTimeout = setTimeout(() => {
+      authTimeout = setTimeout(async () => {
         if (!authenticated) {
           console.log('[WS] Auth timeout - closing connection')
           ws.send(JSON.stringify({
@@ -395,6 +395,19 @@ ws.get('/ws', upgradeWebSocket((c) => {
             code: 'AUTH_TIMEOUT',
             message: 'Authentication timeout - no auth message received within 10 seconds'
           }))
+
+          // Update is_connected to 0 if workerId was provided but auth wasn't completed
+          if (workerId) {
+            try {
+              await db.prepare(
+                `UPDATE workers SET is_connected = 0, last_disconnected_at = ? WHERE id = ?`
+              ).bind(new Date().toISOString(), workerId).run()
+              activeConnections.delete(workerId)
+            } catch (error) {
+              console.error('Error updating worker on auth timeout:', error)
+            }
+          }
+
           ws.close()
         }
       }, 10000)
@@ -415,6 +428,7 @@ ws.get('/ws', upgradeWebSocket((c) => {
               code: 'INVALID_TOKEN',
               message: 'Missing worker_id or token'
             }))
+            ws.close()
             return
           }
 
@@ -422,7 +436,7 @@ ws.get('/ws', upgradeWebSocket((c) => {
           activeConnections.set(workerId, { ws, workerId, authenticated: false })
 
           // Handle authentication
-          handleAuth(db, workerId, token, ws, ipAddress).then((result) => {
+          handleAuth(db, workerId, token, ws, ipAddress).then(async (result) => {
             if (result.success) {
               authenticated = true
               // Clear auth timeout on successful authentication
@@ -442,6 +456,17 @@ ws.get('/ws', upgradeWebSocket((c) => {
                 clearTimeout(authTimeout)
                 authTimeout = null
               }
+
+              // Ensure is_connected is set to 0 on auth failure
+              try {
+                await db.prepare(
+                  `UPDATE workers SET is_connected = 0, last_disconnected_at = ? WHERE id = ?`
+                ).bind(new Date().toISOString(), workerId!).run()
+              } catch (error) {
+                console.error('Error updating worker on auth failure:', error)
+              }
+
+              ws.close()
             }
           })
           return
@@ -454,6 +479,19 @@ ws.get('/ws', upgradeWebSocket((c) => {
             code: 'NOT_AUTHENTICATED',
             message: 'Not authenticated'
           }))
+
+          // Update is_connected to 0 if workerId exists
+          if (workerId) {
+            try {
+              await db.prepare(
+                `UPDATE workers SET is_connected = 0, last_disconnected_at = ? WHERE id = ?`
+              ).bind(new Date().toISOString(), workerId).run()
+              activeConnections.delete(workerId)
+            } catch (error) {
+              console.error('Error updating worker on auth failure:', error)
+            }
+          }
+
           ws.close()
           return
         }
@@ -530,14 +568,23 @@ ws.get('/ws', upgradeWebSocket((c) => {
       }
     },
 
-    onError(event) {
+    async onError(event) {
       console.error('WebSocket error:', event)
       // Clear auth timeout on error
       if (authTimeout) {
         clearTimeout(authTimeout)
         authTimeout = null
       }
+
+      // Update worker status and clean up
       if (workerId) {
+        try {
+          await db.prepare(
+            `UPDATE workers SET is_connected = 0, last_disconnected_at = ? WHERE id = ?`
+          ).bind(new Date().toISOString(), workerId).run()
+        } catch (error) {
+          console.error('Error updating worker on error:', error)
+        }
         activeConnections.delete(workerId)
       }
     }
