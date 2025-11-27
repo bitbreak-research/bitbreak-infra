@@ -37,12 +37,14 @@ export interface CreateWorkerResponse {
   token: string // Only shown once at creation
   expires_at: string
   created_at: string
+  websocket_url: string
 }
 
 export interface RegenerateTokenResponse {
   worker_id: string
   token: string // Only shown once
   expires_at: string
+  websocket_url: string
 }
 
 export interface Metrics {

@@ -1,0 +1,32 @@
+{
+  "name": "@bb-lite/cli",
+  "version": "1.0.0",
+  "description": "CLI package for BB-lite",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "bb": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "pnpm tsc",
+    "dev": "pnpm tsc --watch",
+    "clean": "pnpm rm -rf dist",
+    "prelink": "pnpm build",
+    "link": "pnpm link --global",
+    "build:link": "pnpm build && pnpm link --global"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@inquirer/prompts": "^5.0.0",
+    "blessed": "^0.1.9",
+    "chalk": "^4.1.2",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/blessed": "^0.1.0",
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3"
+  }
+}

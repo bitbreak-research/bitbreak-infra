@@ -65,12 +65,18 @@ workers.post('/', zValidator('json', createWorkerSchema), async (c) => {
      VALUES (?, ?, ?, ?, ?)`
   ).bind(logId, workerId, 'created', tokenHash, createdAt).run()
 
+  // Generate WebSocket URL from request URL
+  const requestUrl = new URL(c.req.url)
+  const protocol = requestUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+  const websocketUrl = `${protocol}//${requestUrl.host}/ws`
+
   return c.json({
     worker_id: workerId,
     name,
     token, // Only shown once at creation
     expires_at: expiresAt,
-    created_at: createdAt
+    created_at: createdAt,
+    websocket_url: websocketUrl
   }, 201)
 })
 
@@ -318,10 +324,16 @@ workers.post('/:id/token', async (c) => {
      VALUES (?, ?, ?, ?, ?)`
   ).bind(logId, id, 'renewed', newTokenHash, new Date().toISOString()).run()
 
+  // Generate WebSocket URL from request URL
+  const requestUrl = new URL(c.req.url)
+  const protocol = requestUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+  const websocketUrl = `${protocol}//${requestUrl.host}/ws`
+
   return c.json({
     worker_id: id,
     token: newToken, // Only shown once
-    expires_at: expiresAt
+    expires_at: expiresAt,
+    websocket_url: websocketUrl
   })
 })
 

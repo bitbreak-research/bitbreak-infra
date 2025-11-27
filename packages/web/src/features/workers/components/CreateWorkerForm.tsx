@@ -46,10 +46,11 @@ export default function CreateWorkerForm(props: { onWorkerCreated?: () => void }
   }
 
   const downloadConfigFile = (data: CreateWorkerResponse, workerName: string) => {
-    // Create config with only id and token
+    // Create config with id, token, and websocket_url
     const config = {
       id: data.worker_id,
-      token: data.token
+      token: data.token,
+      websocket_url: data.websocket_url
     }
 
     // Sanitize worker name for filename (remove special characters, replace spaces with hyphens)

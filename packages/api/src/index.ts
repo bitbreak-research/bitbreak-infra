@@ -29,6 +29,7 @@ app.route('/api/user', user)
 app.route('/api/workers', workers)
 
 // Mount WebSocket route
+// Handles worker WebSocket connections for metrics and status reporting
 app.route('/', ws)
 
 // Health check endpoint

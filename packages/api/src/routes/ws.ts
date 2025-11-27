@@ -125,27 +125,36 @@ async function handleAuth(
 
   // Check if already connected - verify against database AND in-memory Map
   const existingConnection = activeConnections.get(workerId)
-  if (existingConnection) {
-    // Check if the existing WebSocket is still open
-    if (existingConnection.ws.readyState === WebSocket.OPEN && worker.is_connected === 1) {
-      ws.send(JSON.stringify({
-        type: 'auth_error',
-        code: 'ALREADY_CONNECTED',
-        message: 'This worker is already connected from another location'
-      }))
-      return { success: false, error: 'ALREADY_CONNECTED' }
-    } else {
-      // Stale connection (closed or database says disconnected), clean up
-      activeConnections.delete(workerId)
-      // If database says connected but Map has stale entry, update database
-      if (worker.is_connected === 1) {
-        await db.prepare(
-          `UPDATE workers SET is_connected = 0, last_disconnected_at = ? WHERE id = ?`
-        ).bind(new Date().toISOString(), workerId).run()
+  if (existingConnection && existingConnection.ws !== ws) {
+    // There is an existing connection for this worker in memory.
+    // Instead of rejecting the new connection, proactively close the old one
+    // and let the new connection take over. This avoids spurious
+    // ALREADY_CONNECTED errors when reconnecting from the same worker.
+    try {
+      if (existingConnection.ws.readyState === WebSocket.OPEN) {
+        existingConnection.ws.send(JSON.stringify({
+          type: 'error',
+          code: 'ALREADY_CONNECTED',
+          message: 'This worker has connected from another location. Closing this connection.'
+        }))
+        existingConnection.ws.close()
       }
+    } catch {
+      // Ignore errors while closing the old socket
     }
-  } else if (worker.is_connected === 1) {
-    // Database says connected but no entry in Map - clean up database state (worker restart scenario)
+
+    activeConnections.delete(workerId)
+
+    // Mark previous connection as disconnected in the database if it still
+    // reported as connected.
+    if (worker.is_connected === 1) {
+      await db.prepare(
+        `UPDATE workers SET is_connected = 0, last_disconnected_at = ? WHERE id = ?`
+      ).bind(new Date().toISOString(), workerId).run()
+    }
+  } else if (!existingConnection && worker.is_connected === 1) {
+    // Database says connected but no entry in Map - clean up database state
+    // (e.g. Worker restart scenario).
     await db.prepare(
       `UPDATE workers SET is_connected = 0, last_disconnected_at = ? WHERE id = ?`
     ).bind(new Date().toISOString(), workerId).run()
@@ -240,9 +249,9 @@ async function handleMetrics(
     // Validate all metrics in batch
     for (const metric of metrics) {
       if (
-        typeof metric.memory !== 'number' || metric.memory < 0 || metric.memory > 999999 ||
-        typeof metric.cpu !== 'number' || metric.cpu < 0 || metric.cpu > 100 ||
-        typeof metric.rate !== 'number' || metric.rate < 0 || metric.rate > 999999
+        typeof metric.memory !== 'number' ||
+        typeof metric.cpu !== 'number' ||
+        typeof metric.rate !== 'number'
       ) {
         ws.send(JSON.stringify({
           type: 'metrics_error',
@@ -275,9 +284,9 @@ async function handleMetrics(
 
     // Validate required fields
     if (
-      typeof memory !== 'number' || memory < 0 || memory > 999999 ||
-      typeof cpu !== 'number' || cpu < 0 || cpu > 100 ||
-      typeof rate !== 'number' || rate < 0 || rate > 999999
+      typeof memory !== 'number' ||
+      typeof cpu !== 'number' ||
+      typeof rate !== 'number'
     ) {
       ws.send(JSON.stringify({
         type: 'metrics_error',
@@ -372,27 +381,27 @@ ws.get('/ws', upgradeWebSocket((c) => {
   const ipAddress = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || null
   let workerId: string | null = null
   let authenticated = false
-  let firstMessageTime: number | null = null
+  let authTimeout: ReturnType<typeof setTimeout> | null = null
 
   return {
+    onOpen(_event, ws) {
+      console.log('[WS] Connection opened from IP:', ipAddress)
+      // Set a 10-second timeout for authentication
+      authTimeout = setTimeout(() => {
+        if (!authenticated) {
+          console.log('[WS] Auth timeout - closing connection')
+          ws.send(JSON.stringify({
+            type: 'auth_error',
+            code: 'AUTH_TIMEOUT',
+            message: 'Authentication timeout - no auth message received within 10 seconds'
+          }))
+          ws.close()
+        }
+      }, 10000)
+    },
+
     async onMessage(event, ws) {
       try {
-        // Track first message time for auth timeout
-        if (firstMessageTime === null) {
-          firstMessageTime = Date.now()
-        } else {
-          // Check if 10 seconds have passed without auth
-          if (!authenticated && Date.now() - firstMessageTime > 10000) {
-            ws.send(JSON.stringify({
-              type: 'auth_error',
-              code: 'AUTH_TIMEOUT',
-              message: 'Authentication timeout'
-            }))
-            ws.close()
-            return
-          }
-        }
-
         const message = JSON.parse(event.data as string)
 
         // Handle auth message
@@ -416,6 +425,11 @@ ws.get('/ws', upgradeWebSocket((c) => {
           handleAuth(db, workerId, token, ws, ipAddress).then((result) => {
             if (result.success) {
               authenticated = true
+              // Clear auth timeout on successful authentication
+              if (authTimeout) {
+                clearTimeout(authTimeout)
+                authTimeout = null
+              }
               const conn = activeConnections.get(workerId!)
               if (conn) {
                 conn.authenticated = true
@@ -423,6 +437,11 @@ ws.get('/ws', upgradeWebSocket((c) => {
             } else {
               // Remove failed connection
               activeConnections.delete(workerId!)
+              // Clear auth timeout on failed authentication
+              if (authTimeout) {
+                clearTimeout(authTimeout)
+                authTimeout = null
+              }
             }
           })
           return
@@ -488,6 +507,12 @@ ws.get('/ws', upgradeWebSocket((c) => {
     // Auth timeout is handled in onMessage when first message is received
 
     async onClose() {
+      // Clear auth timeout if still active
+      if (authTimeout) {
+        clearTimeout(authTimeout)
+        authTimeout = null
+      }
+
       // Update worker status if authenticated
       if (authenticated && workerId) {
         const now = new Date().toISOString()
@@ -507,6 +532,11 @@ ws.get('/ws', upgradeWebSocket((c) => {
 
     onError(event) {
       console.error('WebSocket error:', event)
+      // Clear auth timeout on error
+      if (authTimeout) {
+        clearTimeout(authTimeout)
+        authTimeout = null
+      }
       if (workerId) {
         activeConnections.delete(workerId)
       }
