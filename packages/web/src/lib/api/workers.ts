@@ -186,9 +186,9 @@ export async function getWorker(id: string) {
 }
 
 /**
- * Revoke a worker
+ * Delete a worker
  */
-export async function revokeWorker(id: string) {
+export async function deleteWorker(id: string) {
   return authDelete<{ success: boolean }>(`/api/workers/${id}`)
 }
 

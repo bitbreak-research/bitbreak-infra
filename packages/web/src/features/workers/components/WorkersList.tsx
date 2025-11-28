@@ -1,7 +1,7 @@
 import { createSignal, onMount, Show } from 'solid-js'
 import { useStore } from '@nanostores/solid'
 import { $authState } from '../../../lib/stores/auth'
-import { listWorkers, revokeWorker, regenerateToken, getWorkersStatus, type Worker, type WorkerStatusWithMetrics } from '../../../lib/api/workers'
+import { listWorkers, deleteWorker, regenerateToken, getWorkersStatus, type Worker, type WorkerStatusWithMetrics } from '../../../lib/api/workers'
 import WorkerStatusBadge from './WorkerStatusBadge'
 import Button from '../../../components/ui/Button'
 import Alert from '../../../components/ui/Alert'
@@ -60,20 +60,20 @@ export default function WorkersList(props: WorkersListProps) {
     (window as any).refreshWorkersList = fetchWorkers
   }
 
-  const handleRevoke = async (id: string) => {
-    if (!confirm('Are you sure you want to revoke this worker? This action cannot be undone.')) {
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this worker? This will permanently remove the worker and all its data.')) {
       return
     }
 
     setActionLoading(id)
     if (!authState().isAuthenticated) return
 
-    const result = await revokeWorker(id)
+    const result = await deleteWorker(id)
 
     if (result.success) {
       await fetchWorkers(true) // Show loading when manually refreshing after action
     } else {
-      alert(result.error?.message || 'Failed to revoke worker')
+      alert(result.error?.message || 'Failed to delete worker')
     }
 
     setActionLoading(null)
@@ -240,11 +240,11 @@ export default function WorkersList(props: WorkersListProps) {
                         </button>
                       </Show>
                       <button
-                        onClick={() => handleRevoke(worker.id)}
-                        disabled={actionLoading() === worker.id || worker.status === 'revoked'}
+                        onClick={() => handleDelete(worker.id)}
+                        disabled={actionLoading() === worker.id}
                         class="text-red-600 hover:text-red-900 disabled:opacity-50"
                       >
-                        {actionLoading() === worker.id ? 'Loading...' : 'Revoke'}
+                        {actionLoading() === worker.id ? 'Loading...' : 'Delete'}
                       </button>
                     </td>
                   </tr>

@@ -232,7 +232,7 @@ workers.get('/:id', async (c) => {
 
 /**
  * DELETE /api/workers/:id
- * Revoke a worker
+ * Delete a worker
  */
 workers.delete('/:id', async (c) => {
   const id = c.req.param('id')
@@ -240,10 +240,9 @@ workers.delete('/:id', async (c) => {
 
   // Get worker
   const worker = await c.env.bb.prepare(
-    `SELECT id, status, token_hash FROM workers WHERE id = ?`
+    `SELECT id, token_hash FROM workers WHERE id = ?`
   ).bind(id).first<{
     id: string
-    status: string
     token_hash: string
   }>()
 
@@ -251,28 +250,22 @@ workers.delete('/:id', async (c) => {
     return authError(c, AuthErrorCodes.WORKER_NOT_FOUND, 404)
   }
 
-  if (worker.status === 'revoked') {
-    return authError(c, AuthErrorCodes.WORKER_REVOKED, 400)
-  }
+  const deletedAt = new Date().toISOString()
 
-  const revokedAt = new Date().toISOString()
-
-  // Update worker status
-  await c.env.bb.prepare(
-    `UPDATE workers 
-     SET status = 'revoked', revoked_at = ?, revoked_by = ?
-     WHERE id = ?`
-  ).bind(revokedAt, user.username, id).run()
-
-  // Log revocation
+  // Log deletion event before deletion (token_log will cascade delete after)
   const logId = crypto.randomUUID()
   await c.env.bb.prepare(
     `INSERT INTO token_log (id, worker_id, event_type, token_hash, created_at)
      VALUES (?, ?, ?, ?, ?)`
-  ).bind(logId, id, 'revoked', worker.token_hash, revokedAt).run()
+  ).bind(logId, id, 'deleted', worker.token_hash, deletedAt).run()
+
+  // Delete worker record (cascades to token_log and metrics)
+  await c.env.bb.prepare(
+    `DELETE FROM workers WHERE id = ?`
+  ).bind(id).run()
 
   // Note: WebSocket connection closure will be handled in ws.ts
-  // when it checks the worker status
+  // when it checks the worker status (worker won't exist, so will send WORKER_NOT_FOUND)
 
   return c.json({ success: true })
 })
