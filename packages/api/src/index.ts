@@ -4,6 +4,7 @@ import auth from './routes/auth'
 import user from './routes/user'
 import workers from './routes/workers'
 import ws from './routes/ws'
+import { scheduled } from './scheduled'
 
 type Bindings = {
   bb: D1Database
@@ -37,4 +38,7 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok' })
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+  scheduled
+}

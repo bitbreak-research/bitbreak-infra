@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { upgradeWebSocket } from 'hono/cloudflare-workers'
+import type { WSContext } from 'hono/ws'
 import { verifyToken, hashToken, generateWorkerToken, isValidTokenFormat } from '../lib/token'
 import { AuthErrorCodes } from '../lib/errors'
 
@@ -14,7 +15,7 @@ type Bindings = {
 // - Not shared across multiple worker instances
 // Production recommendation: Use Durable Objects or KV for distributed state
 const activeConnections = new Map<string, {
-  ws: WebSocket
+  ws: WSContext<WebSocket>
   workerId: string
   authenticated: boolean
   authTimeout?: number
@@ -28,7 +29,7 @@ const ws = new Hono<{ Bindings: Bindings }>()
 async function checkAndRenewToken(
   db: D1Database,
   workerId: string,
-  ws: WebSocket
+  ws: WSContext<WebSocket>
 ): Promise<void> {
   const worker = await db.prepare(
     `SELECT token_expires_at, pending_token_hash, pending_token_expires_at 
@@ -87,7 +88,7 @@ async function handleAuth(
   db: D1Database,
   workerId: string,
   token: string,
-  ws: WebSocket,
+  ws: WSContext<WebSocket>,
   ipAddress: string | null
 ): Promise<{ success: boolean; error?: string }> {
   // Validate token format
@@ -131,14 +132,12 @@ async function handleAuth(
     // and let the new connection take over. This avoids spurious
     // ALREADY_CONNECTED errors when reconnecting from the same worker.
     try {
-      if (existingConnection.ws.readyState === WebSocket.OPEN) {
-        existingConnection.ws.send(JSON.stringify({
-          type: 'error',
-          code: 'ALREADY_CONNECTED',
-          message: 'This worker has connected from another location. Closing this connection.'
-        }))
-        existingConnection.ws.close()
-      }
+      existingConnection.ws.send(JSON.stringify({
+        type: 'error',
+        code: 'ALREADY_CONNECTED',
+        message: 'This worker has connected from another location. Closing this connection.'
+      }))
+      existingConnection.ws.close()
     } catch {
       // Ignore errors while closing the old socket
     }
@@ -232,7 +231,7 @@ async function handleMetrics(
   db: D1Database,
   workerId: string,
   message: { type: string; memory?: number; cpu?: number; rate?: number; metrics?: Array<{ memory: number; cpu: number; rate: number }> },
-  ws: WebSocket
+  ws: WSContext<WebSocket>
 ): Promise<{ success: boolean; error?: string }> {
   // Handle batch metrics
   if (message.type === 'metrics_batch' && message.metrics) {
@@ -262,7 +261,7 @@ async function handleMetrics(
       }
     }
 
-    // Insert all metrics
+    // Insert all metrics and update last_connected_at
     const now = new Date().toISOString()
     for (const metric of metrics) {
       await db.prepare(
@@ -270,6 +269,11 @@ async function handleMetrics(
          VALUES (?, ?, ?, ?, ?)`
       ).bind(workerId, metric.memory, metric.cpu, metric.rate, now).run()
     }
+
+    // Update last activity timestamp for stale connection detection
+    await db.prepare(
+      `UPDATE workers SET last_connected_at = ? WHERE id = ?`
+    ).bind(now, workerId).run()
 
     ws.send(JSON.stringify({
       type: 'metrics_ack',
@@ -302,6 +306,11 @@ async function handleMetrics(
       `INSERT INTO metrics (worker_id, memory, cpu, rate, created_at)
        VALUES (?, ?, ?, ?, ?)`
     ).bind(workerId, memory, cpu, rate, now).run()
+
+    // Update last activity timestamp for stale connection detection
+    await db.prepare(
+      `UPDATE workers SET last_connected_at = ? WHERE id = ?`
+    ).bind(now, workerId).run()
 
     ws.send(JSON.stringify({
       type: 'metrics_ack',
@@ -384,7 +393,7 @@ ws.get('/ws', upgradeWebSocket((c) => {
   let authTimeout: ReturnType<typeof setTimeout> | null = null
 
   return {
-    onOpen(_event, ws) {
+    onOpen(_event: Event, ws: WSContext<WebSocket>) {
       console.log('[WS] Connection opened from IP:', ipAddress)
       // Set a 10-second timeout for authentication
       authTimeout = setTimeout(async () => {
@@ -499,7 +508,7 @@ ws.get('/ws', upgradeWebSocket((c) => {
         // Check if worker has been revoked (on any message)
         const workerStatus = await db.prepare(
           `SELECT status FROM workers WHERE id = ?`
-        ).bind(workerId).first<{ status: string }>()
+        ).bind(workerId).first() as { status: string } | null
 
         if (workerStatus && workerStatus.status === 'revoked') {
           ws.send(JSON.stringify({
