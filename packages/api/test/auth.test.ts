@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test'
-import app from '../src/index'
+import { app } from '../src/index'
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 
 describe('Auth API', () => {
@@ -14,7 +14,7 @@ describe('Auth API', () => {
         updated_at TEXT DEFAULT (datetime('now'))
       )
     `).run()
-    
+
     // Create sessions table
     await env.bb.prepare(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -30,7 +30,7 @@ describe('Auth API', () => {
       )
     `).run()
   })
-  
+
   beforeEach(async () => {
     // Clean up tables before each test
     await env.bb.prepare('DELETE FROM sessions').run()
@@ -41,7 +41,7 @@ describe('Auth API', () => {
     it('should return needsSetup: true when no users exist', async () => {
       const res = await app.request('/api/auth/status', {}, env)
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.needsSetup).toBe(true)
       expect(data.version).toBe('1.0.0')
@@ -59,9 +59,9 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       expect(res.status).toBe(201)
-      
+
       const data = await res.json()
       expect(data.user.username).toBe('admin')
       expect(data.accessToken).toBeDefined()
@@ -80,7 +80,7 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       // Second setup attempt
       const res = await app.request('/api/auth/setup', {
         method: 'POST',
@@ -91,9 +91,9 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       expect(res.status).toBe(400)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_002')
     })
@@ -108,9 +108,9 @@ describe('Auth API', () => {
           confirmPassword: 'differentpassword'
         })
       }, env)
-      
+
       expect(res.status).toBe(400)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_008')
     })
@@ -125,9 +125,9 @@ describe('Auth API', () => {
           confirmPassword: 'short'
         })
       }, env)
-      
+
       expect(res.status).toBe(400)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_009')
     })
@@ -142,9 +142,9 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       expect(res.status).toBe(400)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_010')
     })
@@ -173,9 +173,9 @@ describe('Auth API', () => {
           password: 'password123'
         })
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.user.username).toBe('testuser')
       expect(data.accessToken).toBeDefined()
@@ -191,9 +191,9 @@ describe('Auth API', () => {
           password: 'password123'
         })
       }, env)
-      
+
       expect(res.status).toBe(401)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_003')
     })
@@ -207,9 +207,9 @@ describe('Auth API', () => {
           password: 'wrongpassword'
         })
       }, env)
-      
+
       expect(res.status).toBe(401)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_003')
     })
@@ -227,9 +227,9 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       const setupData = await setupRes.json()
-      
+
       const res = await app.request('/api/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,9 +237,9 @@ describe('Auth API', () => {
           refreshToken: setupData.refreshToken
         })
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.accessToken).toBeDefined()
       expect(data.expiresIn).toBe(900)
@@ -253,9 +253,9 @@ describe('Auth API', () => {
           refreshToken: 'invalid-token'
         })
       }, env)
-      
+
       expect(res.status).toBe(401)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_005')
     })
@@ -273,9 +273,9 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       const setupData = await setupRes.json()
-      
+
       const res = await app.request('/api/auth/logout', {
         method: 'POST',
         headers: {
@@ -286,9 +286,9 @@ describe('Auth API', () => {
           refreshToken: setupData.refreshToken
         })
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.success).toBe(true)
     })
@@ -306,17 +306,17 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       const setupData = await setupRes.json()
-      
+
       const res = await app.request('/api/auth/me', {
         headers: {
           'Authorization': `Bearer ${setupData.accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.user.username).toBe('testuser')
       expect(data.user.id).toBeDefined()
@@ -325,9 +325,9 @@ describe('Auth API', () => {
 
     it('should fail without token', async () => {
       const res = await app.request('/api/auth/me', {}, env)
-      
+
       expect(res.status).toBe(401)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_005')
     })
@@ -338,9 +338,9 @@ describe('Auth API', () => {
           'Authorization': 'Bearer invalid-token'
         }
       }, env)
-      
+
       expect(res.status).toBe(401)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('AUTH_005')
     })
@@ -358,10 +358,10 @@ describe('Auth API', () => {
           confirmPassword: 'password123'
         })
       }, env)
-      
+
       const res = await app.request('/api/auth/status', {}, env)
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.needsSetup).toBe(false)
     })

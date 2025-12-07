@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test'
-import app from '../src/index'
+import { app } from '../src/index'
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 
 describe('Workers API', () => {
@@ -17,7 +17,7 @@ describe('Workers API', () => {
         updated_at TEXT DEFAULT (datetime('now'))
       )
     `).run()
-    
+
     // Create sessions table
     await env.bb.prepare(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -96,12 +96,12 @@ describe('Workers API', () => {
         confirmPassword: 'password123'
       })
     }, env)
-    
+
     const setupData = await setupRes.json()
     accessToken = setupData.accessToken
     userId = setupData.user.id
   })
-  
+
   beforeEach(async () => {
     // Clean up tables before each test
     await env.bb.prepare('DELETE FROM metrics').run()
@@ -121,9 +121,9 @@ describe('Workers API', () => {
           name: 'MacMini-Office-01'
         })
       }, env)
-      
+
       expect(res.status).toBe(201)
-      
+
       const data = await res.json()
       expect(data.worker_id).toMatch(/^wrk_/)
       expect(data.name).toBe('MacMini-Office-01')
@@ -141,7 +141,7 @@ describe('Workers API', () => {
           name: 'MacMini-Office-01'
         })
       }, env)
-      
+
       expect(res.status).toBe(401)
     })
 
@@ -156,7 +156,7 @@ describe('Workers API', () => {
           name: 'AB'
         })
       }, env)
-      
+
       expect(res.status).toBe(400)
     })
 
@@ -171,7 +171,7 @@ describe('Workers API', () => {
           name: 'A'.repeat(101)
         })
       }, env)
-      
+
       expect(res.status).toBe(400)
     })
   })
@@ -195,9 +195,9 @@ describe('Workers API', () => {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(Array.isArray(data)).toBe(true)
       expect(data.length).toBe(1)
@@ -208,7 +208,7 @@ describe('Workers API', () => {
 
     it('should fail without authentication', async () => {
       const res = await app.request('/api/workers', {}, env)
-      
+
       expect(res.status).toBe(401)
     })
   })
@@ -235,9 +235,9 @@ describe('Workers API', () => {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.id).toBe(workerId)
       expect(data.name).toBe('MacMini-Office-01')
@@ -251,16 +251,16 @@ describe('Workers API', () => {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(404)
-      
+
       const data = await res.json()
       expect(data.error.code).toBe('WORKER_001')
     })
 
     it('should fail without authentication', async () => {
       const res = await app.request('/api/workers/wrk_test', {}, env)
-      
+
       expect(res.status).toBe(401)
     })
   })
@@ -288,22 +288,20 @@ describe('Workers API', () => {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.success).toBe(true)
 
-      // Verify worker is revoked
+      // Verify worker is deleted (not found)
       const getRes = await app.request(`/api/workers/${workerId}`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
-      const workerData = await getRes.json()
-      expect(workerData.status).toBe('revoked')
-      expect(workerData.revoked_at).toBeDefined()
+
+      expect(getRes.status).toBe(404)
     })
 
     it('should return 404 for non-existent worker', async () => {
@@ -313,7 +311,7 @@ describe('Workers API', () => {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(404)
     })
 
@@ -321,7 +319,7 @@ describe('Workers API', () => {
       const res = await app.request('/api/workers/wrk_test', {
         method: 'DELETE'
       }, env)
-      
+
       expect(res.status).toBe(401)
     })
   })
@@ -350,9 +348,9 @@ describe('Workers API', () => {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(200)
-      
+
       const data = await res.json()
       expect(data.worker_id).toBe(workerId)
       expect(data.token).toMatch(/^tk_/)
@@ -367,7 +365,7 @@ describe('Workers API', () => {
           'Authorization': `Bearer ${accessToken}`
         }
       }, env)
-      
+
       expect(res.status).toBe(404)
     })
 
@@ -375,7 +373,7 @@ describe('Workers API', () => {
       const res = await app.request('/api/workers/wrk_test/token', {
         method: 'POST'
       }, env)
-      
+
       expect(res.status).toBe(401)
     })
   })

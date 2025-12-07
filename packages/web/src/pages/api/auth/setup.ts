@@ -3,8 +3,6 @@ import { setSessionCookies } from '../../../lib/auth/cookies'
 
 const API_URL = import.meta.env.API_URL || 'http://localhost:8787'
 
-console.log('API_URL', API_URL);
-
 /**
  * Decode JWT payload without verification (only used to extract sessionId from token we just received)
  */

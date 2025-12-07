@@ -227,10 +227,36 @@ async function handleAuth(
 /**
  * Handle metrics message
  */
-async function handleMetrics(
+export async function handleMetrics(
   db: D1Database,
   workerId: string,
-  message: { type: string; memory?: number; cpu?: number; rate?: number; metrics?: Array<{ memory: number; cpu: number; rate: number }> },
+  message: {
+    type: string
+    memory?: number
+    cpu?: number
+    rate?: number
+    mnemonicLanguage?: string
+    threads?: number
+    batchSize?: number
+    gpuEnabled?: boolean
+    gpuBatchSize?: number
+    reportIntervalSeconds?: number
+    keepAddress?: boolean
+    powerLevel?: string
+    metrics?: Array<{
+      memory: number
+      cpu: number
+      rate: number
+      mnemonicLanguage?: string
+      threads?: number
+      batchSize?: number
+      gpuEnabled?: boolean
+      gpuBatchSize?: number
+      reportIntervalSeconds?: number
+      keepAddress?: boolean
+      powerLevel?: string
+    }>
+  },
   ws: WSContext<WebSocket>
 ): Promise<{ success: boolean; error?: string }> {
   // Handle batch metrics
@@ -265,9 +291,26 @@ async function handleMetrics(
     const now = new Date().toISOString()
     for (const metric of metrics) {
       await db.prepare(
-        `INSERT INTO metrics (worker_id, memory, cpu, rate, created_at)
-         VALUES (?, ?, ?, ?, ?)`
-      ).bind(workerId, metric.memory, metric.cpu, metric.rate, now).run()
+        `INSERT INTO metrics (
+          worker_id, memory, cpu, rate, mnemonic_language, threads, batch_size,
+          gpu_enabled, gpu_batch_size, report_interval_seconds, keep_address, power_level, created_at
+        )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        workerId,
+        metric.memory,
+        metric.cpu,
+        metric.rate,
+        metric.mnemonicLanguage ?? null,
+        metric.threads ?? null,
+        metric.batchSize ?? null,
+        metric.gpuEnabled ? 1 : 0,
+        metric.gpuBatchSize ?? null,
+        metric.reportIntervalSeconds ?? null,
+        metric.keepAddress ? 1 : 0,
+        metric.powerLevel ?? null,
+        now
+      ).run()
     }
 
     // Update last activity timestamp for stale connection detection
@@ -284,7 +327,19 @@ async function handleMetrics(
 
   // Handle single metrics message
   if (message.type === 'metrics') {
-    const { memory, cpu, rate } = message
+    const {
+      memory,
+      cpu,
+      rate,
+      mnemonicLanguage,
+      threads,
+      batchSize,
+      gpuEnabled,
+      gpuBatchSize,
+      reportIntervalSeconds,
+      keepAddress,
+      powerLevel
+    } = message
 
     // Validate required fields
     if (
@@ -303,9 +358,26 @@ async function handleMetrics(
     // Insert metrics into database
     const now = new Date().toISOString()
     await db.prepare(
-      `INSERT INTO metrics (worker_id, memory, cpu, rate, created_at)
-       VALUES (?, ?, ?, ?, ?)`
-    ).bind(workerId, memory, cpu, rate, now).run()
+      `INSERT INTO metrics (
+        worker_id, memory, cpu, rate, mnemonic_language, threads, batch_size,
+        gpu_enabled, gpu_batch_size, report_interval_seconds, keep_address, power_level, created_at
+      )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      workerId,
+      memory,
+      cpu,
+      rate,
+      mnemonicLanguage ?? null,
+      threads ?? null,
+      batchSize ?? null,
+      gpuEnabled ? 1 : 0,
+      gpuBatchSize ?? null,
+      reportIntervalSeconds ?? null,
+      keepAddress ? 1 : 0,
+      powerLevel ?? null,
+      now
+    ).run()
 
     // Update last activity timestamp for stale connection detection
     await db.prepare(

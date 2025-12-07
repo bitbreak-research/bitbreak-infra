@@ -270,6 +270,25 @@ workers.delete('/:id', async (c) => {
   return c.json({ success: true })
 })
 
+// /**
+//  * POST /api/workers/:id/start
+//  * Start a worker
+//  */
+// workers.post('/:id/start', async (c) => {
+//   const id = c.req.param('id')
+//   const user = c.get('user')
+// })
+
+
+// /**
+//  * POST /api/workers/:id/stop
+//  * Stop a worker
+//  */
+// workers.post('/:id/stop', async (c) => {
+//   const id = c.req.param('id')
+//   const user = c.get('user')
+// })
+
 /**
  * POST /api/workers/:id/token
  * Regenerate token for a worker (admin action)

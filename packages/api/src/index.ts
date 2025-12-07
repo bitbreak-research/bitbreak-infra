@@ -38,6 +38,7 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok' })
 })
 
+export { app }
 export default {
   fetch: app.fetch,
   scheduled
