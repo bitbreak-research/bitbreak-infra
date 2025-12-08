@@ -10,6 +10,7 @@ declare namespace Cloudflare {
 		REFRESH_TOKEN_EXPIRY: "604800";
 		JWT_SECRET: "test-secret-for-local-dev-min-32-chars-long";
 		bb: D1Database;
+		WORKER_CONNECTIONS: DurableObjectNamespace;
 	}
 }
 interface CloudflareBindings extends Cloudflare.Env {}

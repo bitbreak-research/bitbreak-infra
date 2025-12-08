@@ -1,4 +1,33 @@
-<!-- 73e3b89d-5acd-4bfb-b1d2-9694348eb454 ccf2c5aa-277b-4bf0-91dd-02d810b12c97 -->
+---
+name: Implement CLI Worker Connect Flow
+overview: ""
+todos:
+  - id: 4b50c69c-b6ef-49bf-9eb0-1ac0b4bcc834
+    content: Remove unused menu options and handlers from CLI
+    status: pending
+  - id: af9d948d-3d32-49e4-9011-b503f31f80de
+    content: Change config dir to ~/.bb-worker with new schema
+    status: pending
+  - id: 0e3c9c11-0599-4fa1-8b47-2cbff8bf05fc
+    content: Modify callback to handle worker config instead of API key
+    status: pending
+  - id: e505bea4-3ea3-4484-8666-811f3482666f
+    content: Create WorkerConnectModal component for accepting connections
+    status: pending
+  - id: 74500277-30d7-4ff8-a091-f028ece86d83
+    content: Create WorkerConnectController to manage modal from URL params
+    status: pending
+  - id: e7fa3a57-0f73-4ea7-8acd-e21aad40aea4
+    content: Integrate modal controller into workers page
+    status: pending
+  - id: 51c5f069-3bd0-4dd1-856f-0acb051cf47d
+    content: Update mock-worker to read from ~/.bb-worker/config.json
+    status: pending
+  - id: 1dde8041-7b85-4d1f-8e65-4829f7ac4d17
+    content: Add mock-worker spawning to CLI after successful config
+    status: pending
+---
+
 # Implement CLI Worker Connect Flow
 
 ## 1. Update CLI Package
@@ -88,14 +117,3 @@
 
 - **Mock Worker Spawning**: Use `spawn('node', [mockWorkerPath], { detached: true, stdio: 'inherit' })`
 - **No New API Routes**: Use existing `POST /api/workers` route through web proxy
-
-### To-dos
-
-- [ ] Remove unused menu options and handlers from CLI
-- [ ] Change config dir to ~/.bb-worker with new schema
-- [ ] Modify callback to handle worker config instead of API key
-- [ ] Create WorkerConnectModal component for accepting connections
-- [ ] Create WorkerConnectController to manage modal from URL params
-- [ ] Integrate modal controller into workers page
-- [ ] Update mock-worker to read from ~/.bb-worker/config.json
-- [ ] Add mock-worker spawning to CLI after successful config

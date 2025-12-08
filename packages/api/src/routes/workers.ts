@@ -13,10 +13,12 @@ import {
   authError,
   type AuthErrorCode
 } from '../lib/errors'
+import { sendMessageToWorker, getWorkerConnectionStatus } from './ws'
 
 type Bindings = {
   bb: D1Database
   JWT_SECRET: string
+  WORKER_CONNECTIONS: DurableObjectNamespace
 }
 
 type Variables = {
@@ -68,7 +70,7 @@ workers.post('/', zValidator('json', createWorkerSchema), async (c) => {
   // Generate WebSocket URL from request URL
   const requestUrl = new URL(c.req.url)
   const protocol = requestUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-  const websocketUrl = `${protocol}//${requestUrl.host}/ws`
+  const websocketUrl = `${protocol}//${requestUrl.host}/ws?worker_id=${workerId}`
 
   return c.json({
     worker_id: workerId,
@@ -87,8 +89,8 @@ workers.post('/', zValidator('json', createWorkerSchema), async (c) => {
 workers.get('/', async (c) => {
   const workersList = await c.env.bb.prepare(
     `SELECT 
-      id, name, status, token_expires_at, last_connected_at, 
-      is_connected, created_at, renewal_failure_reason, renewal_failure_at
+      id, name, status, token_expires_at, 
+      created_at, renewal_failure_reason, renewal_failure_at
      FROM workers
      ORDER BY created_at DESC`
   ).all<{
@@ -96,24 +98,29 @@ workers.get('/', async (c) => {
     name: string
     status: string
     token_expires_at: string
-    last_connected_at: string | null
-    is_connected: number
     created_at: string
     renewal_failure_reason: string | null
     renewal_failure_at: string | null
   }>()
 
-  return c.json(workersList.results.map(w => ({
-    id: w.id,
-    name: w.name,
-    status: w.status,
-    token_expires_at: w.token_expires_at,
-    last_connected_at: w.last_connected_at,
-    is_connected: w.is_connected === 1, // Convert INTEGER to boolean
-    created_at: w.created_at,
-    renewal_failure_reason: w.renewal_failure_reason,
-    renewal_failure_at: w.renewal_failure_at
-  })))
+  // Get connection status from Durable Objects for each worker
+  const workersWithStatus = await Promise.all(
+    workersList.results.map(async (w) => {
+      const connectionStatus = await getWorkerConnectionStatus(c.env, w.id)
+      return {
+        id: w.id,
+        name: w.name,
+        status: w.status,
+        token_expires_at: w.token_expires_at,
+        is_connected: connectionStatus.connected,
+        created_at: w.created_at,
+        renewal_failure_reason: w.renewal_failure_reason,
+        renewal_failure_at: w.renewal_failure_at
+      }
+    })
+  )
+
+  return c.json(workersWithStatus)
 })
 
 /**
@@ -130,11 +137,10 @@ workers.get('/status', async (c) => {
       m.memory,
       m.cpu,
       m.rate,
-      CASE
-        WHEN m.created_at IS NULL THEN 0
-        WHEN datetime(m.created_at) > datetime('now', '-2 minutes') THEN 1
-        ELSE 0
-      END as connected,
+      m.engine_status,
+      m.power_level,
+      m.mnemonic_language,
+      m.gpu_enabled,
       CASE
         WHEN m.created_at IS NULL THEN NULL
         ELSE CAST((julianday('now') - julianday(m.created_at)) * 86400 AS INTEGER)
@@ -146,7 +152,11 @@ workers.get('/status', async (c) => {
         m1.created_at,
         m1.memory,
         m1.cpu,
-        m1.rate
+        m1.rate,
+        m1.engine_status,
+        m1.power_level,
+        m1.mnemonic_language,
+        m1.gpu_enabled
       FROM metrics m1
       WHERE m1.id = (
         SELECT m2.id
@@ -166,22 +176,37 @@ workers.get('/status', async (c) => {
     memory: number | null
     cpu: number | null
     rate: number | null
-    connected: number
+    engine_status: string | null
+    power_level: string | null
+    mnemonic_language: string | null
+    gpu_enabled: number | null
     last_report_age_seconds: number | null
   }>()
 
+  // Get real-time connection status from Durable Objects
+  const workersWithConnection = await Promise.all(
+    workersList.results.map(async (w) => {
+      const connectionStatus = await getWorkerConnectionStatus(c.env, w.id)
+      return {
+        worker_id: w.id,
+        name: w.name,
+        status: w.status,
+        connected: connectionStatus.connected,
+        memory: w.memory,
+        cpu: w.cpu,
+        rate: w.rate,
+        engine_status: w.engine_status,
+        power_level: w.power_level,
+        mnemonic_language: w.mnemonic_language,
+        gpu_enabled: w.gpu_enabled === 1,
+        last_report: w.last_report,
+        last_report_age_seconds: w.last_report_age_seconds
+      }
+    })
+  )
+
   return c.json({
-    workers: workersList.results.map(w => ({
-      worker_id: w.id,
-      name: w.name,
-      status: w.status,
-      connected: w.connected === 1,
-      memory: w.memory,
-      cpu: w.cpu,
-      rate: w.rate,
-      last_report: w.last_report,
-      last_report_age_seconds: w.last_report_age_seconds
-    }))
+    workers: workersWithConnection
   })
 })
 
@@ -206,10 +231,7 @@ workers.get('/:id', async (c) => {
     renewal_failure_reason: string | null
     renewal_failure_at: string | null
     renewal_retry_count: number
-    last_connected_at: string | null
-    last_disconnected_at: string | null
     last_ip: string | null
-    is_connected: number
     created_at: string
     created_by: string | null
     revoked_at: string | null
@@ -221,12 +243,15 @@ workers.get('/:id', async (c) => {
     return authError(c, AuthErrorCodes.WORKER_NOT_FOUND, 404)
   }
 
+  // Get connection status from Durable Object
+  const connectionStatus = await getWorkerConnectionStatus(c.env, id)
+
   // Exclude token_hash from response
   const { token_hash, pending_token_hash, ...workerData } = worker
 
   return c.json({
     ...workerData,
-    is_connected: worker.is_connected === 1
+    is_connected: connectionStatus.connected
   })
 })
 
@@ -264,30 +289,145 @@ workers.delete('/:id', async (c) => {
     `DELETE FROM workers WHERE id = ?`
   ).bind(id).run()
 
-  // Note: WebSocket connection closure will be handled in ws.ts
-  // when it checks the worker status (worker won't exist, so will send WORKER_NOT_FOUND)
+  // Note: Durable Object will handle WebSocket closure when worker no longer exists
 
   return c.json({ success: true })
 })
 
-// /**
-//  * POST /api/workers/:id/start
-//  * Start a worker
-//  */
-// workers.post('/:id/start', async (c) => {
-//   const id = c.req.param('id')
-//   const user = c.get('user')
-// })
+/**
+ * POST /api/workers/:id/start
+ * Start a worker engine
+ */
+workers.post('/:id/start', async (c) => {
+  const id = c.req.param('id')
 
+  // Get worker
+  const worker = await c.env.bb.prepare(
+    `SELECT id, status FROM workers WHERE id = ?`
+  ).bind(id).first<{
+    id: string
+    status: string
+  }>()
 
-// /**
-//  * POST /api/workers/:id/stop
-//  * Stop a worker
-//  */
-// workers.post('/:id/stop', async (c) => {
-//   const id = c.req.param('id')
-//   const user = c.get('user')
-// })
+  if (!worker) {
+    return authError(c, AuthErrorCodes.WORKER_NOT_FOUND, 404)
+  }
+
+  if (worker.status === 'revoked') {
+    return authError(c, AuthErrorCodes.WORKER_REVOKED, 400)
+  }
+
+  // Check if worker is connected via Durable Object
+  const connectionStatus = await getWorkerConnectionStatus(c.env, id)
+  if (!connectionStatus.connected) {
+    return c.json({
+      success: false,
+      error: { message: 'Worker is not connected via WebSocket. Please wait for the worker to establish connection.' }
+    }, 400)
+  }
+
+  // Get latest metrics to check current engine status
+  const latestMetrics = await c.env.bb.prepare(
+    `SELECT engine_status FROM metrics 
+     WHERE worker_id = ? 
+     ORDER BY created_at DESC 
+     LIMIT 1`
+  ).bind(id).first<{ engine_status: string | null }>()
+
+  // Check if engine is already running
+  if (latestMetrics && latestMetrics.engine_status === 'running') {
+    return c.json({
+      success: false,
+      error: { message: 'Engine is already running' }
+    }, 400)
+  }
+
+  // Send WebSocket message to start the engine via Durable Object
+  const result = await sendMessageToWorker(c.env, id, {
+    type: 'engine_start',
+    power_level: 'medium',
+    mnemonic_language: 'en',
+    gpu_enabled: true
+  })
+
+  if (!result.success) {
+    return c.json({
+      success: false,
+      error: { message: result.error || 'Failed to send start command' }
+    }, 500)
+  }
+
+  return c.json({
+    success: true,
+    message: 'Start command sent to worker'
+  })
+})
+
+/**
+ * POST /api/workers/:id/stop
+ * Stop a worker engine
+ */
+workers.post('/:id/stop', async (c) => {
+  const id = c.req.param('id')
+
+  // Get worker
+  const worker = await c.env.bb.prepare(
+    `SELECT id, status FROM workers WHERE id = ?`
+  ).bind(id).first<{
+    id: string
+    status: string
+  }>()
+
+  if (!worker) {
+    return authError(c, AuthErrorCodes.WORKER_NOT_FOUND, 404)
+  }
+
+  if (worker.status === 'revoked') {
+    return authError(c, AuthErrorCodes.WORKER_REVOKED, 400)
+  }
+
+  // Check if worker is connected via Durable Object
+  const connectionStatus = await getWorkerConnectionStatus(c.env, id)
+  if (!connectionStatus.connected) {
+    return c.json({
+      success: false,
+      error: { message: 'Worker is not connected via WebSocket. Please wait for the worker to establish connection.' }
+    }, 400)
+  }
+
+  // Get latest metrics to check current engine status
+  const latestMetrics = await c.env.bb.prepare(
+    `SELECT engine_status FROM metrics 
+     WHERE worker_id = ? 
+     ORDER BY created_at DESC 
+     LIMIT 1`
+  ).bind(id).first<{ engine_status: string | null }>()
+
+  // Check if engine is already stopped
+  if (!latestMetrics || latestMetrics.engine_status === 'stopped') {
+    return c.json({
+      success: false,
+      error: { message: 'Engine is already stopped' }
+    }, 400)
+  }
+
+  // Send WebSocket message to stop the engine via Durable Object
+  const result = await sendMessageToWorker(c.env, id, {
+    type: 'engine_stop'
+  })
+
+  if (!result.success) {
+    return c.json({
+      success: false,
+      error: { message: result.error || 'Failed to send stop command' }
+    }, 500)
+  }
+
+  return c.json({
+    success: true,
+    message: 'Stop command sent to worker'
+  })
+})
 
 /**
  * POST /api/workers/:id/token
@@ -339,7 +479,7 @@ workers.post('/:id/token', async (c) => {
   // Generate WebSocket URL from request URL
   const requestUrl = new URL(c.req.url)
   const protocol = requestUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-  const websocketUrl = `${protocol}//${requestUrl.host}/ws`
+  const websocketUrl = `${protocol}//${requestUrl.host}/ws?worker_id=${id}`
 
   return c.json({
     worker_id: id,
@@ -367,7 +507,8 @@ workers.get('/:id/metrics/latest', async (c) => {
 
   // Get latest metrics
   const latest = await c.env.bb.prepare(
-    `SELECT worker_id, memory, cpu, rate, created_at
+    `SELECT worker_id, memory, cpu, rate, engine_status, power_level, 
+            mnemonic_language, gpu_enabled, created_at
      FROM metrics
      WHERE worker_id = ?
      ORDER BY created_at DESC
@@ -377,6 +518,10 @@ workers.get('/:id/metrics/latest', async (c) => {
     memory: number
     cpu: number
     rate: number
+    engine_status: string | null
+    power_level: string | null
+    mnemonic_language: string | null
+    gpu_enabled: number | null
     created_at: string
   }>()
 
@@ -389,6 +534,10 @@ workers.get('/:id/metrics/latest', async (c) => {
     memory: latest.memory,
     cpu: latest.cpu,
     rate: latest.rate,
+    engine_status: latest.engine_status,
+    power_level: latest.power_level,
+    mnemonic_language: latest.mnemonic_language,
+    gpu_enabled: latest.gpu_enabled === 1,
     created_at: latest.created_at
   })
 })
@@ -439,4 +588,3 @@ workers.get('/:id/metrics', zValidator('query', metricsQuerySchema), async (c) =
 })
 
 export default workers
-

@@ -7,7 +7,6 @@ export interface Worker {
   name: string
   status: WorkerStatus
   token_expires_at: string
-  last_connected_at: string | null
   is_connected: boolean
   created_at: string
   renewal_failure_reason?: string | null
@@ -19,7 +18,6 @@ export interface WorkerDetail extends Worker {
   pending_token_expires_at: string | null
   pending_token_created_at: string | null
   renewal_retry_count: number
-  last_disconnected_at: string | null
   last_ip: string | null
   created_by: string | null
   revoked_at: string | null
@@ -52,6 +50,10 @@ export interface Metrics {
   memory: number
   cpu: number
   rate: number
+  engine_status: string | null
+  power_level: string | null
+  mnemonic_language: string | null
+  gpu_enabled: boolean
   created_at: string
 }
 
@@ -75,6 +77,10 @@ export interface WorkerStatusWithMetrics {
   memory: number | null
   cpu: number | null
   rate: number | null
+  engine_status: string | null
+  power_level: string | null
+  mnemonic_language: string | null
+  gpu_enabled: boolean | null
   last_report: string | null
   last_report_age_seconds: number | null
 }
@@ -224,5 +230,19 @@ export async function getWorkerMetrics(id: string, params?: { from?: string; to?
  */
 export async function getWorkersStatus() {
   return authGet<WorkersStatusResponse>('/api/workers/status')
+}
+
+/**
+ * Start a worker engine
+ */
+export async function startWorker(workerId: string) {
+  return authPost<{ success: boolean; message?: string }>(`/api/workers/${workerId}/start`, {})
+}
+
+/**
+ * Stop a worker engine
+ */
+export async function stopWorker(workerId: string) {
+  return authPost<{ success: boolean; message?: string }>(`/api/workers/${workerId}/stop`, {})
 }
 

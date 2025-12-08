@@ -1,4 +1,18 @@
-<!-- c4f0a2b3-f8cb-4cdf-add1-b770b58da7a7 41d28b6a-e44d-4276-b8b2-78d0cc7d0d24 -->
+---
+name: Implement Delete Worker Feature
+overview: ""
+todos:
+  - id: 79f6adff-33b3-4c8a-a4c4-1d147a8f5624
+    content: Update DELETE endpoint to actually delete worker record from database
+    status: pending
+  - id: 71123859-5f60-4211-9f7e-1bb42db314cb
+    content: Rename revokeWorker to deleteWorker in API client
+    status: pending
+  - id: be058741-ab0f-46f0-8849-dbff50dfa0d5
+    content: Update WorkersList component with delete terminology and remove status checks
+    status: pending
+---
+
 # Implement Delete Worker Feature
 
 ## Overview
@@ -92,9 +106,3 @@ Update UI text and behavior (lines 63-80, 242-248):
 2. `packages/api/src/lib/errors.ts` - Add WORKER_DELETED error code (optional)
 3. `packages/web/src/lib/api/workers.ts` - Rename revokeWorker to deleteWorker
 4. `packages/web/src/features/workers/components/WorkersList.tsx` - Update UI text and handler
-
-### To-dos
-
-- [ ] Update DELETE endpoint to actually delete worker record from database
-- [ ] Rename revokeWorker to deleteWorker in API client
-- [ ] Update WorkersList component with delete terminology and remove status checks

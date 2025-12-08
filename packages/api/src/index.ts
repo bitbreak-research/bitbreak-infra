@@ -9,6 +9,7 @@ import { scheduled } from './scheduled'
 type Bindings = {
   bb: D1Database
   JWT_SECRET: string
+  WORKER_CONNECTIONS: DurableObjectNamespace
 }
 
 type Variables = {
@@ -37,6 +38,9 @@ app.route('/', ws)
 app.get('/health', (c) => {
   return c.json({ status: 'ok' })
 })
+
+// Export Durable Object class
+export { WorkerConnection } from './durable-objects/WorkerConnection'
 
 export { app }
 export default {

@@ -10,6 +10,22 @@
 			"database_id": "10480fa2-04a6-4e91-b448-3cf7f008b628"
 		}
 	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "WORKER_CONNECTIONS",
+				"class_name": "WorkerConnection"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"WorkerConnection"
+			]
+		}
+	],
 	"vars": {
 		"ACCESS_TOKEN_EXPIRY": "900",
 		"REFRESH_TOKEN_EXPIRY": "604800"

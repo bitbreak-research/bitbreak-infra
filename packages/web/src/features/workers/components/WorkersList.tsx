@@ -1,7 +1,7 @@
 import { createSignal, onMount, Show } from 'solid-js'
 import { useStore } from '@nanostores/solid'
 import { $authState } from '../../../lib/stores/auth'
-import { listWorkers, deleteWorker, regenerateToken, getWorkersStatus, type Worker, type WorkerStatusWithMetrics } from '../../../lib/api/workers'
+import { listWorkers, deleteWorker, regenerateToken, getWorkersStatus, startWorker, stopWorker, type Worker, type WorkerStatusWithMetrics } from '../../../lib/api/workers'
 import WorkerStatusBadge from './WorkerStatusBadge'
 import Button from '../../../components/ui/Button'
 import Alert from '../../../components/ui/Alert'
@@ -99,6 +99,36 @@ export default function WorkersList(props: WorkersListProps) {
     setActionLoading(null)
   }
 
+  const handleStart = async (id: string) => {
+    setActionLoading(id)
+    if (!authState().isAuthenticated) return
+
+    const result = await startWorker(id)
+
+    if (result.success) {
+      await fetchWorkers(false) // Silent refresh
+    } else {
+      alert(result.error?.message || 'Failed to start worker')
+    }
+
+    setActionLoading(null)
+  }
+
+  const handleStop = async (id: string) => {
+    setActionLoading(id)
+    if (!authState().isAuthenticated) return
+
+    const result = await stopWorker(id)
+
+    if (result.success) {
+      await fetchWorkers(false) // Silent refresh
+    } else {
+      alert(result.error?.message || 'Failed to stop worker')
+    }
+
+    setActionLoading(null)
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never'
     const date = new Date(dateString)
@@ -173,6 +203,9 @@ export default function WorkersList(props: WorkersListProps) {
                   Metrics
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Engine
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Last Connected
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -224,28 +257,86 @@ export default function WorkersList(props: WorkersListProps) {
                       </Show>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <Show when={status?.engine_status} fallback={
+                        <div class="text-xs text-gray-400">Unknown</div>
+                      }>
+                        <div class="space-y-1">
+                          <div class="flex items-center gap-2">
+                            <span class={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                              status?.engine_status === 'running' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {status?.engine_status === 'running' ? '▶ Running' : '⏸ Stopped'}
+                            </span>
+                          </div>
+                          <Show when={status?.power_level || status?.mnemonic_language || status?.gpu_enabled !== null}>
+                            <div class="text-xs text-gray-600">
+                              <Show when={status?.power_level}>
+                                Power: {status?.power_level}
+                              </Show>
+                              <Show when={status?.mnemonic_language}>
+                                {' | '}Lang: {status?.mnemonic_language}
+                              </Show>
+                              <Show when={status?.gpu_enabled !== null}>
+                                {' | '}GPU: {status?.gpu_enabled ? 'On' : 'Off'}
+                              </Show>
+                            </div>
+                          </Show>
+                        </div>
+                      </Show>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(worker.last_connected_at)}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatExpiresAt(worker.token_expires_at)}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      <Show when={worker.status === 'active'}>
-                        <button
-                          onClick={() => handleRegenerateToken(worker.id)}
-                          disabled={actionLoading() === worker.id}
-                          class="text-blue-600 hover:text-blue-900 disabled:opacity-50"
-                        >
-                          {actionLoading() === worker.id ? 'Loading...' : 'Regenerate Token'}
-                        </button>
-                      </Show>
-                      <button
-                        onClick={() => handleDelete(worker.id)}
-                        disabled={actionLoading() === worker.id}
-                        class="text-red-600 hover:text-red-900 disabled:opacity-50"
-                      >
-                        {actionLoading() === worker.id ? 'Loading...' : 'Delete'}
-                      </button>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div class="flex flex-col space-y-2">
+                        <div class="flex items-center space-x-2">
+                          <Show when={worker.status === 'active' && worker.is_connected}>
+                            <Show 
+                              when={!status?.engine_status || status?.engine_status === 'stopped'}
+                              fallback={
+                                <button
+                                  onClick={() => handleStop(worker.id)}
+                                  disabled={actionLoading() === worker.id}
+                                  class="text-orange-600 hover:text-orange-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Stop engine"
+                                >
+                                  {actionLoading() === worker.id ? 'Loading...' : 'Stop'}
+                                </button>
+                              }
+                            >
+                              <button
+                                onClick={() => handleStart(worker.id)}
+                                disabled={actionLoading() === worker.id}
+                                class="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Start engine"
+                              >
+                                {actionLoading() === worker.id ? 'Loading...' : 'Start'}
+                              </button>
+                            </Show>
+                          </Show>
+                          <Show when={worker.status === 'active'}>
+                            <button
+                              onClick={() => handleRegenerateToken(worker.id)}
+                              disabled={actionLoading() === worker.id}
+                              class="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                            >
+                              {actionLoading() === worker.id ? 'Loading...' : 'Regen Token'}
+                            </button>
+                          </Show>
+                          <button
+                            onClick={() => handleDelete(worker.id)}
+                            disabled={actionLoading() === worker.id}
+                            class="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          >
+                            {actionLoading() === worker.id ? 'Loading...' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 )
