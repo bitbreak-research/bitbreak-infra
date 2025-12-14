@@ -18,3 +18,4 @@ CREATE INDEX IF NOT EXISTS idx_worker_commands_worker ON worker_commands(worker_
 CREATE INDEX IF NOT EXISTS idx_worker_commands_status ON worker_commands(status);
 CREATE INDEX IF NOT EXISTS idx_worker_commands_created ON worker_commands(created_at);
 
+

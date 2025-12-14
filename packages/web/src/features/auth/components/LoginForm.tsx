@@ -1,10 +1,10 @@
 import { createSignal, Show, onMount } from 'solid-js'
-import Button from '../../../components/ui/Button'
-import Input from '../../../components/ui/Input'
-import Alert from '../../../components/ui/Alert'
-import { login, getAuthStatus } from '../../../lib/api/auth'
-import { setAuthenticated } from '../../../lib/stores/auth'
-import { checkSession } from '../../../lib/auth/session'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
+import Alert from '@/components/ui/Alert'
+import { login, getAuthStatus } from '@/lib/api/auth'
+import { setAuthenticated } from '@/lib/stores/auth'
+import { checkSession } from '@/lib/auth/session'
 
 interface LoginFormProps {
   redirectUrl?: string
@@ -58,8 +58,20 @@ export default function LoginForm(props: LoginFormProps) {
   }
 
   return (
-    <Show when={!checking()} fallback={<div class="text-center text-gray-500">Loading...</div>}>
+    <Show when={!checking()} fallback={
+      <div class="flex items-center justify-center py-8">
+        <svg class="animate-spin h-6 w-6 text-[var(--color-gray-400)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+    }>
       <form onSubmit={handleSubmit} class="space-y-6">
+        <div class="text-center mb-6">
+          <h2 class="text-lg font-semibold text-[var(--color-gray-900)]">Sign In</h2>
+          <p class="text-sm text-[var(--color-gray-500)] mt-1">Enter your credentials to continue</p>
+        </div>
+
         <div class="space-y-4">
           <Input
             label="Username"
@@ -68,6 +80,7 @@ export default function LoginForm(props: LoginFormProps) {
             onInput={(e) => setUsername(e.currentTarget.value)}
             required
             autocomplete="username"
+            placeholder="admin"
           />
 
           <Input
@@ -77,6 +90,7 @@ export default function LoginForm(props: LoginFormProps) {
             onInput={(e) => setPassword(e.currentTarget.value)}
             required
             autocomplete="current-password"
+            placeholder="Enter your password"
           />
         </div>
 
@@ -91,4 +105,3 @@ export default function LoginForm(props: LoginFormProps) {
     </Show>
   )
 }
-

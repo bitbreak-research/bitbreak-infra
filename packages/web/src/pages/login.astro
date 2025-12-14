@@ -17,12 +17,5 @@ if (isAuthenticated) {
 ---
 
 <AuthLayout title="Sign In">
-  <div class="space-y-8">
-    <div class="text-center">
-      <h1 class="text-lg font-medium">Sign In</h1>
-    </div>
-    
-    <LoginForm client:load redirectUrl={redirectUrl} />
-  </div>
+  <LoginForm client:load redirectUrl={redirectUrl} />
 </AuthLayout>
-

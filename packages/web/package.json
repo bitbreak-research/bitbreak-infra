@@ -1,5 +1,5 @@
 {
-  "name": "@bb-infra/web",
+  "name": "@bitbreak-infra/web",
   "type": "module",
   "version": "0.0.1",
   "scripts": {

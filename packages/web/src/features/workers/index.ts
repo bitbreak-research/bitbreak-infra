@@ -1,4 +1,6 @@
 export { default as CreateWorkerForm } from './components/CreateWorkerForm'
 export { default as WorkersList } from './components/WorkersList'
 export { default as WorkerStatusBadge } from './components/WorkerStatusBadge'
-
+export { default as MachineCard } from './components/MachineCard'
+export { default as MachinesGrid } from './components/MachinesGrid'
+export { default as WorkerDetail } from './components/WorkerDetail'

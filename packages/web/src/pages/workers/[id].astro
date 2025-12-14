@@ -1,0 +1,27 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import WorkerDetail from "../../features/workers/components/WorkerDetail";
+import AuthGuard from "../../features/auth/components/AuthGuard";
+
+export const prerender = false;
+
+const { id } = Astro.params;
+---
+
+<DashboardLayout title="Machine Details" currentPath="/workers">
+  <AuthGuard client:load>
+    <!-- Back link -->
+    <a href="/workers" class="inline-flex items-center gap-2 text-sm text-[var(--color-gray-500)] hover:text-[var(--color-gray-900)] mb-6">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="19" y1="12" x2="5" y2="12"></line>
+        <polyline points="12 19 5 12 12 5"></polyline>
+      </svg>
+      Back to Machines
+    </a>
+
+    <WorkerDetail client:load workerId={id!} />
+  </AuthGuard>
+</DashboardLayout>
+
+
+

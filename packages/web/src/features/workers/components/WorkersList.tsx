@@ -221,7 +221,7 @@ export default function WorkersList(props: WorkersListProps) {
                 const status = getWorkerStatus(worker.id)
                 const connectionIndicator = status?.connected ? '●' : '○'
                 const connectionText = status?.connected ? 'Connected' : 'Disconnected'
-                
+
                 return (
                   <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -262,11 +262,10 @@ export default function WorkersList(props: WorkersListProps) {
                       }>
                         <div class="space-y-1">
                           <div class="flex items-center gap-2">
-                            <span class={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                              status?.engine_status === 'running' 
-                                ? 'bg-green-100 text-green-800' 
+                            <span class={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${status?.engine_status === 'running'
+                                ? 'bg-green-100 text-green-800'
                                 : 'bg-gray-100 text-gray-800'
-                            }`}>
+                              }`}>
                               {status?.engine_status === 'running' ? '▶ Running' : '⏸ Stopped'}
                             </span>
                           </div>
@@ -296,7 +295,7 @@ export default function WorkersList(props: WorkersListProps) {
                       <div class="flex flex-col space-y-2">
                         <div class="flex items-center space-x-2">
                           <Show when={worker.status === 'active' && worker.is_connected}>
-                            <Show 
+                            <Show
                               when={!status?.engine_status || status?.engine_status === 'stopped'}
                               fallback={
                                 <button

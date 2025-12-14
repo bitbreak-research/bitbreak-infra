@@ -3,6 +3,7 @@ import middleware from './middleware'
 import auth from './routes/auth'
 import user from './routes/user'
 import workers from './routes/workers'
+import dashboard from './routes/dashboard'
 import ws from './routes/ws'
 import { scheduled } from './scheduled'
 
@@ -29,6 +30,9 @@ app.route('/api/user', user)
 
 // Mount worker routes
 app.route('/api/workers', workers)
+
+// Mount dashboard routes
+app.route('/api/dashboard', dashboard)
 
 // Mount WebSocket route
 // Handles worker WebSocket connections for metrics and status reporting

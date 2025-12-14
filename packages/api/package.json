@@ -1,5 +1,5 @@
 {
-  "name": "api",
+  "name": "@bitbreak-infra/api",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
