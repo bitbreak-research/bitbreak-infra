@@ -1,1 +1,0 @@
-import{a as n,c as r}from"./auth.YqlKLZ3z.js";async function c(){if(typeof window>"u")return!1;try{const e=await fetch("/api/auth/check",{method:"GET",credentials:"include"});if(e.ok){const t=await e.json();if(t.authenticated&&t.user)return n(t.user,null,null),!0}return r(),!1}catch(e){return console.error("Session check error:",e),r(),!1}}export{c};
