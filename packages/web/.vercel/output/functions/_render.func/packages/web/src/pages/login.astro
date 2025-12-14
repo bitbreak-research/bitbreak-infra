@@ -1,0 +1,21 @@
+---
+import AuthLayout from "../layouts/AuthLayout.astro";
+import { LoginForm } from "../features/auth";
+import { checkAuth } from "../lib/utils/server-auth";
+
+export const prerender = false;
+
+// Get redirect parameter
+const redirectUrl = Astro.url.searchParams.get('redirect') || '/workers';
+
+// Redirect if already authenticated
+const { isAuthenticated } = await checkAuth(Astro.cookies);
+
+if (isAuthenticated) {
+  return Astro.redirect(redirectUrl);
+}
+---
+
+<AuthLayout title="Sign In">
+  <LoginForm client:load redirectUrl={redirectUrl} />
+</AuthLayout>

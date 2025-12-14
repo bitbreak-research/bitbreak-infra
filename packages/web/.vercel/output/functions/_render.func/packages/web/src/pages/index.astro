@@ -1,0 +1,14 @@
+---
+import { checkAuth } from "../lib/utils/server-auth";
+
+export const prerender = false;
+
+// Redirect to /workers if authenticated, otherwise to /login
+const { isAuthenticated } = await checkAuth(Astro.cookies);
+
+if (isAuthenticated) {
+  return Astro.redirect("/workers");
+} else {
+  return Astro.redirect("/login");
+}
+---
